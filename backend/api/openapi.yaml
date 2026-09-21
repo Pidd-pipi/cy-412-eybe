@@ -4,5 +4,25 @@ paths:
   /healthz: { get: { summary: Health check } }
   /api/v1/auth/login: { post: { summary: Login } }
   /api/v1/repairs: { get: { summary: List repairs }, post: { summary: Create repair } }
+  /api/v1/repairs/{id}/cancel:
+    post:
+      summary: Owner cancels own repair ticket
+      description: Only the resident who created the ticket may cancel it; allowed while pending or assigned. Staff/admin cannot cancel on behalf of the owner. Processing/done/closed tickets must use the finish/close flow. Cancelled tickets are retained and excluded from pending counts.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { type: object, properties: { reason: { type: string, maxLength: 200 } } }
+      responses:
+        '200': { description: Cancelled }
+        '403': { description: Caller is not the ticket creator }
+        '404': { description: Ticket not found }
+        '409': { description: Already cancelled or status advanced past the cancellable stage }
   /api/v1/payments: { get: { summary: List payments }, post: { summary: Create bill } }
   /api/v1/announcements: { get: { summary: List announcements }, post: { summary: Publish announcement } }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }

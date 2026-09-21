@@ -1,0 +1,9 @@
+-- 002: 业主撤销报修工单闭环 —— RepairStatus 新增 cancelled（已取消）。
+-- repairs.status 为 VARCHAR(20)（GORM AutoMigrate 管理），新增枚举值无需变更列类型，历史数据不受影响。
+-- 业务语义（在 RepairService.CancelByOwner 中实现）：
+--   * 仅工单创建者本人可撤销；物业与管理员不能代业主取消（403）。
+--   * 仅 pending（待受理）/ assigned（已分派）可撤销。
+--   * processing/done/closed 状态已推进，必须走原有的完成/关闭流程（409）。
+--   * 重复取消返回明确原因（409，repair already cancelled）。
+--   * 撤销后工单记录保留并标记为 cancelled，待处理统计口径：
+--       status NOT IN ('done', 'closed', 'cancelled')。

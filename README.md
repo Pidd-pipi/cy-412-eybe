@@ -19,7 +19,8 @@ docker compose up -d
 ## 主要功能
 
 - **物业工作台**：汇总待办报修、本月已收费用和近期公告。
-- **报修管理**：业主创建水电/家具/公共设施等报修；物业筛选、分配和更新进度。
+- **报修管理**：业主创建水电/家具/公共设施等报修；物业筛选、分配和更新进度；业主本人可在待受理/已分派阶段撤销工单。
+- **业主撤销闭环**：仅工单创建者本人可撤销（物业、管理员不能代取消）；待受理/已分派可取消，处理中及之后必须走完成/关闭流程；撤销后记录保留并标记为已取消、不计入待处理数量；重复取消、越权取消、状态已推进均返回明确原因。
 - **费用缴纳**：按业主展示账单，通过支付宝沙箱模拟完成支付和记录查询。
 - **社区公告**：置顶、发布、详情查看与阅读计数。
 - **个人中心**：更新昵称、头像 URL，并绑定楼栋、单元和房间。
@@ -71,6 +72,7 @@ cd backend && go build ./...
 | GET/POST | `/repairs` | 工单列表 / 创建工单 |
 | PATCH | `/repairs/:id/assign` | 分配处理人，`repair:manage` |
 | PATCH | `/repairs/:id/status` | 更新进度，`repair:manage` |
+| POST | `/repairs/:id/cancel` | 业主本人撤销工单（仅待受理/已分派；越权 403、重复或状态已推进 409） |
 | GET/POST | `/payments` | 账单列表 / 生成账单 |
 | POST | `/payments/:id/pay` | 模拟支付（限流） |
 | GET/POST | `/announcements` | 公告列表 / 发布，发布需 `announcement:publish` |
@@ -115,10 +117,10 @@ OpenAPI 摘要位于 `backend/api/openapi.yaml`。
 
 ### RepairStatus
 
-- 后端定义：`backend/internal/constants/repair.go`；数据库 `Repair.status`；模型 `backend/internal/model/repair.go`。
-- 后端使用：`backend/internal/service/repair_service.go` 状态机、`backend/internal/handler/repair_handler.go` DTO 校验、`backend/internal/constants/log_templates.go`、`backend/internal/util/formatter.go`。
-- 前端定义：`frontend/src/constants/repair.ts`、`frontend/src/types/index.ts`。
-- 前端使用：`frontend/src/components/common/RepairStatusBadge.vue`、`RepairCard.vue`、`frontend/src/pages/Repairs.vue` 的筛选器、`frontend/src/api/repair.ts`、`frontend/src/hooks/useRepairStats.ts`。
+- 后端定义：`backend/internal/constants/repair.go`；数据库 `Repair.status`；模型 `backend/internal/model/repair.go`；迁移说明 `backend/migrations/002_repair_cancelled.sql`。
+- 后端使用：`backend/internal/service/repair_service.go` 状态机（含 `CancelByOwner` 业主撤销规则）、`backend/internal/handler/repair_handler.go` DTO 校验与撤销入口、`backend/internal/router/repairs.go`、`backend/internal/repository/repair_repository.go`（条件撤销与待处理统计）、`backend/internal/constants/log_templates.go`、`backend/internal/util/formatter.go`。
+- 前端定义：`frontend/src/constants/repair.ts`（含 `canOwnerCancel`）、`frontend/src/types/index.ts`。
+- 前端使用：`frontend/src/components/common/RepairStatusBadge.vue`、`RepairCard.vue`（业主撤销操作与详情）、`frontend/src/pages/Repairs.vue` 的筛选器与撤销后回读、`frontend/src/api/repair.ts`、`frontend/src/hooks/useRepairStats.ts`。
 
 ### UserRole
 

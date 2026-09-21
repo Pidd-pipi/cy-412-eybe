@@ -26,8 +26,19 @@ func (r *RepairRepository) ByID(id uint) (v model.Repair, e error) {
 	return
 }
 func (r *RepairRepository) Update(v *model.Repair) error { return r.DB.Save(v).Error }
+
+// CancelByOwner 仅当工单仍处于 fromStatuses 中的状态时，原子地把工单置为 toStatus。
+// 返回 rowsAffected：0 表示状态已被推进（或已取消），调用方应重新读取并返回明确原因。
+func (r *RepairRepository) CancelByOwner(id, userID uint, fromStatuses []string, toStatus string) (int64, error) {
+	res := r.DB.Model(&model.Repair{}).
+		Where("id = ? AND user_id = ? AND status IN ?", id, userID, fromStatuses).
+		Update("status", toStatus)
+	return res.RowsAffected, res.Error
+}
+
 func (r *RepairRepository) CountOpen() (int64, error) {
 	var n int64
-	e := r.DB.Model(&model.Repair{}).Where("status NOT IN ?", []string{"done", "closed"}).Count(&n).Error
+	// 已完成、已关闭、已取消均不再计入待处理数量。
+	e := r.DB.Model(&model.Repair{}).Where("status NOT IN ?", []string{"done", "closed", "cancelled"}).Count(&n).Error
 	return n, e
 }

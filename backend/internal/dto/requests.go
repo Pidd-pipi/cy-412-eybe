@@ -24,6 +24,9 @@ type UpdateRepairStatusRequest struct {
 	Status string `json:"status" validate:"required,oneof=pending assigned processing done closed"`
 	Rating int    `json:"rating" validate:"omitempty,min=1,max=5"`
 }
+type CancelRepairRequest struct {
+	Reason string `json:"reason" validate:"omitempty,max=200"`
+}
 type CreatePaymentRequest struct {
 	UserID  uint    `json:"user_id" validate:"required"`
 	FeeType string  `json:"fee_type" validate:"required"`
