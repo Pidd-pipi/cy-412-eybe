@@ -3,6 +3,16 @@ info: { title: SmartEstate API, version: 1.0.0 }
 paths:
   /healthz: { get: { summary: Health check } }
   /api/v1/auth/login: { post: { summary: Login } }
-  /api/v1/repairs: { get: { summary: List repairs }, post: { summary: Create repair } }
+  /api/v1/repairs: { get: { summary: List repairs, support status=cancelled filter }, post: { summary: Create repair } }
+  /api/v1/repairs/{id}/assign: { patch: { summary: Assign handler, repair:manage } }
+  /api/v1/repairs/{id}/status: { patch: { summary: Update progress, repair:manage; cancelled is rejected here } }
+  /api/v1/repairs/{id}/cancel:
+    patch:
+      summary: Owner cancels own repair (only creator; pending/assigned only)
+      responses:
+        '200': { description: Cancelled, repair retained with status=cancelled }
+        '403': { description: Not the creator (staff/admin cannot cancel on behalf of owner) }
+        '404': { description: Repair not found }
+        '409': { description: Already cancelled or status advanced (processing/done/closed) }
   /api/v1/payments: { get: { summary: List payments }, post: { summary: Create bill } }
   /api/v1/announcements: { get: { summary: List announcements }, post: { summary: Publish announcement } }

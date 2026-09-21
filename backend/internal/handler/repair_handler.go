@@ -1,10 +1,15 @@
 package handler
 
 import (
-	"github.com/gin-gonic/gin"
-	"github.com/smartestate/smartestate/internal/dto"
-	"github.com/smartestate/smartestate/internal/service"
+	"errors"
+	"net/http"
 	"strconv"
+
+	"github.com/gin-gonic/gin"
+	"github.com/smartestate/smartestate/internal/constants"
+	"github.com/smartestate/smartestate/internal/dto"
+	"github.com/smartestate/smartestate/internal/repository"
+	"github.com/smartestate/smartestate/internal/service"
 )
 
 type RepairHandler struct {
@@ -43,6 +48,10 @@ func (h *RepairHandler) Assign(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	v, e := h.svc.Assign(uint(id), r.HandlerID, c.GetString("role"))
 	if e != nil {
+		if errors.Is(e, service.ErrRepairAlreadyCancelled) {
+			Fail(c, http.StatusConflict, constants.CodeConflict, e.Error())
+			return
+		}
 		Fail(c, 400, 40001, e.Error())
 		return
 	}
@@ -56,7 +65,33 @@ func (h *RepairHandler) Status(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	v, e := h.svc.UpdateStatus(uint(id), r.Status, r.Rating, c.GetString("role"))
 	if e != nil {
+		switch {
+		case errors.Is(e, service.ErrRepairCancelNotStaff), errors.Is(e, service.ErrRepairAlreadyCancelled):
+			Fail(c, http.StatusConflict, constants.CodeConflict, e.Error())
+			return
+		}
 		Fail(c, 400, 40001, e.Error())
+		return
+	}
+	OK(c, v)
+}
+
+// Cancel 业主撤销本人工单。只需登录态（Auth），不挂 repair:manage，
+// 物业与管理员即使登录也会在服务层因非创建者被拒绝。
+func (h *RepairHandler) Cancel(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
+	v, e := h.svc.CancelByOwner(uint(id), c.GetUint("userID"), c.GetString("role"))
+	if e != nil {
+		switch {
+		case errors.Is(e, repository.ErrNotFound):
+			Fail(c, http.StatusNotFound, constants.CodeNotFound, e.Error())
+		case errors.Is(e, service.ErrRepairCancelForbidden):
+			Fail(c, http.StatusForbidden, constants.CodeForbidden, e.Error())
+		case errors.Is(e, service.ErrRepairAlreadyCancelled), errors.Is(e, service.ErrRepairNotCancellable), errors.Is(e, service.ErrRepairStatusAdvanced):
+			Fail(c, http.StatusConflict, constants.CodeConflict, e.Error())
+		default:
+			Fail(c, http.StatusInternalServerError, constants.CodeInternal, e.Error())
+		}
 		return
 	}
 	OK(c, v)

@@ -21,7 +21,7 @@ type AssignRepairRequest struct {
 	HandlerID uint `json:"handler_id" validate:"required"`
 }
 type UpdateRepairStatusRequest struct {
-	Status string `json:"status" validate:"required,oneof=pending assigned processing done closed"`
+	Status string `json:"status" validate:"required,oneof=pending assigned processing done closed cancelled"`
 	Rating int    `json:"rating" validate:"omitempty,min=1,max=5"`
 }
 type CreatePaymentRequest struct {

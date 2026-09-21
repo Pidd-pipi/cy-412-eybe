@@ -68,9 +68,10 @@ cd backend && go build ./...
 | POST | `/auth/login` | 登录（限流） |
 | GET/PUT | `/users/me` | 获取或更新个人资料 |
 | GET | `/users/staff` | 获取处理人员，`repair:manage` |
-| GET/POST | `/repairs` | 工单列表 / 创建工单 |
+| GET/POST | `/repairs` | 工单列表（支持 `status=cancelled` 筛选） / 创建工单 |
 | PATCH | `/repairs/:id/assign` | 分配处理人，`repair:manage` |
-| PATCH | `/repairs/:id/status` | 更新进度，`repair:manage` |
+| PATCH | `/repairs/:id/status` | 更新进度，`repair:manage`（不能写入 `cancelled`） |
+| PATCH | `/repairs/:id/cancel` | 业主撤销本人工单：仅创建者、`pending/assigned` 可撤销；越权 403，重复取消/状态已推进 409 |
 | GET/POST | `/payments` | 账单列表 / 生成账单 |
 | POST | `/payments/:id/pay` | 模拟支付（限流） |
 | GET/POST | `/announcements` | 公告列表 / 发布，发布需 `announcement:publish` |
@@ -115,10 +116,10 @@ OpenAPI 摘要位于 `backend/api/openapi.yaml`。
 
 ### RepairStatus
 
-- 后端定义：`backend/internal/constants/repair.go`；数据库 `Repair.status`；模型 `backend/internal/model/repair.go`。
-- 后端使用：`backend/internal/service/repair_service.go` 状态机、`backend/internal/handler/repair_handler.go` DTO 校验、`backend/internal/constants/log_templates.go`、`backend/internal/util/formatter.go`。
-- 前端定义：`frontend/src/constants/repair.ts`、`frontend/src/types/index.ts`。
-- 前端使用：`frontend/src/components/common/RepairStatusBadge.vue`、`RepairCard.vue`、`frontend/src/pages/Repairs.vue` 的筛选器、`frontend/src/api/repair.ts`、`frontend/src/hooks/useRepairStats.ts`。
+- 后端定义：`backend/internal/constants/repair.go`（含 `OwnerCancellableStatuses` 可撤销状态集合）；数据库 `Repair.status` 与 `Repair.cancelled_at`（迁移 `backend/migrations/002_repair_cancelled.sql`）；模型 `backend/internal/model/repair.go`。
+- 后端使用：`backend/internal/service/repair_service.go` 状态机（`CancelByOwner` 撤销闭环、重复/越权/状态推进的哨兵错误）、`backend/internal/handler/repair_handler.go` 撤销处理器与 DTO 校验、`backend/internal/router/repairs.go`（`/repairs/:id/cancel`）、`backend/internal/repository/repair_repository.go`（条件取消与待处理计数排除已取消）、`backend/internal/constants/log_templates.go`（`repair.cancel`）、`backend/internal/constants/messages.go`（撤销原因文案）、`backend/internal/constants/error_codes.go`（40901 冲突码）、`backend/internal/util/formatter.go`。
+- 前端定义：`frontend/src/constants/repair.ts`（`REPAIR_STATUS`、`repairStatusText`、`isOwnerCancellable`）、`frontend/src/types/index.ts`（`cancelled_at`）。
+- 前端使用：`frontend/src/components/common/RepairStatusBadge.vue`、`RepairCard.vue`（撤销按钮/取消时间）、`frontend/src/pages/Repairs.vue` 的筛选器、详情弹窗与当场撤销刷新、`frontend/src/api/repair.ts`（`cancelRepair`）、`frontend/src/hooks/useRepairStats.ts`。
 
 ### UserRole
 

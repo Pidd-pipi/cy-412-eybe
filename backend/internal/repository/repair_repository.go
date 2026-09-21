@@ -2,8 +2,10 @@ package repository
 
 import (
 	"errors"
+	"github.com/smartestate/smartestate/internal/constants"
 	"github.com/smartestate/smartestate/internal/model"
 	"gorm.io/gorm"
+	"time"
 )
 
 type RepairRepository struct{ DB *gorm.DB }
@@ -26,8 +28,22 @@ func (r *RepairRepository) ByID(id uint) (v model.Repair, e error) {
 	return
 }
 func (r *RepairRepository) Update(v *model.Repair) error { return r.DB.Save(v).Error }
+
+// Cancel 在数据库侧做条件更新：仅当工单仍为可撤销状态且未取消时生效，
+// 防止读取后状态被推进导致的并发覆盖。返回 rows==false 表示条件未满足。
+func (r *RepairRepository) Cancel(id uint, statuses []string, at time.Time) (bool, error) {
+	res := r.DB.Model(&model.Repair{}).
+		Where("id = ? AND status IN ? AND cancelled_at IS NULL", id, statuses).
+		Updates(map[string]any{"status": constants.RepairStatusCancelled, "cancelled_at": at})
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected == 1, nil
+}
+
+// CountOpen 待处理数量不包含已完成、已关闭与业主已取消的工单。
 func (r *RepairRepository) CountOpen() (int64, error) {
 	var n int64
-	e := r.DB.Model(&model.Repair{}).Where("status NOT IN ?", []string{"done", "closed"}).Count(&n).Error
+	e := r.DB.Model(&model.Repair{}).Where("status NOT IN ?", []string{constants.RepairStatusDone, constants.RepairStatusClosed, constants.RepairStatusCancelled}).Count(&n).Error
 	return n, e
 }
